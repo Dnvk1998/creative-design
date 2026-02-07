@@ -1,0 +1,107 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: 'Rajdhani', sans-serif;
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    position: fixed;
+
+    /* Updated Path: This tells the CSS to look inside the assets folder */
+    background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), 
+                url('assets/earth.png') no-repeat center center fixed;
+    background-size: cover;
+}
+
+/* --- NEW: IMAGE OVERLAY SECTION --- */
+.logo-container {
+    position: absolute;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%); /* Centers the logo at the top */
+    z-index: 5;
+    pointer-events: none; /* Critical: allows mouse interaction with particles behind it */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.site-logo {
+    width: 80px; /* Adjust size as needed */
+    height: auto;
+    filter: drop-shadow(0 0 10px rgba(0, 255, 242, 0.268)); /* Gives your logo a nebula glow */
+    opacity: 50%;
+}
+
+canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+}
+
+.ui-layer {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    padding-bottom: 8vh;
+    pointer-events: none;
+}
+
+input {
+    pointer-events: all;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 12px 24px;
+    font-size: 1.2rem;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    color: #fff;
+    border-radius: 30px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    outline: none;
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+input:focus {
+    border-color: #00fff2;
+    background: rgba(0, 255, 242, 0.05);
+    box-shadow: 0 0 25px rgba(0, 255, 242, 0.3);
+    transform: scale(1.02);
+}
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+    input {
+        font-size: 1rem;
+        padding: 10px 20px;
+        width: 80%;
+    }
+    
+    .site-logo {
+        width: 60px; /* Slightly smaller logo on mobile */
+    }
+}
