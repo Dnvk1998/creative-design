@@ -4,51 +4,81 @@
     box-sizing: border-box;
 }
 
-body {
-    margin: 0;
-    padding: 0;
+/* -----------------------------
+   ROOT + BODY (TOUCH SAFE)
+----------------------------- */
+
+html, body {
+    width: 100%;
+    height: 100%;
     overflow: hidden;
+    touch-action: none; /* CRITICAL for touch + gyro */
+    overscroll-behavior: none;
+}
+
+body {
     font-family: 'Rajdhani', sans-serif;
-    height: 100vh;
-    width: 100vw;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
     align-items: center;
     position: fixed;
 
-    /* Updated Path: This tells the CSS to look inside the assets folder */
-    background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), 
-                url('assets/earth.png') no-repeat center center fixed;
+    /* Background */
+    background:
+        linear-gradient(
+            rgba(0, 0, 0, 0.45),
+            rgba(0, 0, 0, 0.45)
+        ),
+        url('assets/earth.png') no-repeat center center fixed;
     background-size: cover;
+
+    /* Prevent text selection during interaction */
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
 }
 
-/* --- NEW: IMAGE OVERLAY SECTION --- */
+/* -----------------------------
+   LOGO OVERLAY
+----------------------------- */
+
 .logo-container {
     position: absolute;
-    top: 30px;
+    top: 28px;
     left: 50%;
-    transform: translateX(-50%); /* Centers the logo at the top */
+    transform: translateX(-50%);
     z-index: 5;
-    pointer-events: none; /* Critical: allows mouse interaction with particles behind it */
+    pointer-events: none;
     display: flex;
     flex-direction: column;
     align-items: center;
 }
 
 .site-logo {
-    width: 80px; /* Adjust size as needed */
+    width: 80px;
     height: auto;
-    filter: drop-shadow(0 0 10px rgba(0, 255, 242, 0.268)); /* Gives your logo a nebula glow */
-    opacity: 50%;
+    opacity: 0.5;
+    filter: drop-shadow(0 0 10px rgba(0, 255, 242, 0.25));
+    transition: opacity 0.3s ease;
 }
+
+/* -----------------------------
+   CANVAS (MAIN STAGE)
+----------------------------- */
 
 canvas {
     position: absolute;
-    top: 0;
-    left: 0;
+    inset: 0;
     z-index: 1;
+
+    /* Performance hint */
+    will-change: transform;
 }
+
+/* -----------------------------
+   UI LAYER
+----------------------------- */
 
 .ui-layer {
     position: relative;
@@ -60,26 +90,40 @@ canvas {
     pointer-events: none;
 }
 
+/* -----------------------------
+   INPUT FIELD
+----------------------------- */
+
 input {
     pointer-events: all;
-    background: rgba(255, 255, 255, 0.03);
+
+    background: rgba(255, 255, 255, 0.035);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    padding: 12px 24px;
+
+    padding: 12px 26px;
     font-size: 1.2rem;
     font-family: 'Rajdhani', sans-serif;
     font-weight: 700;
     color: #fff;
+
     border-radius: 30px;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+
     outline: none;
     width: 90%;
     max-width: 400px;
     text-align: center;
-    transition: all 0.3s ease;
-    text-transform: uppercase;
+
     letter-spacing: 3px;
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+    text-transform: uppercase;
+
+    transition:
+        border-color 0.25s ease,
+        box-shadow 0.25s ease,
+        background 0.25s ease;
+
+    box-shadow: 0 4px 25px rgba(0, 0, 0, 0.15);
 }
 
 input::placeholder {
@@ -88,20 +132,29 @@ input::placeholder {
 
 input:focus {
     border-color: #00fff2;
-    background: rgba(0, 255, 242, 0.05);
-    box-shadow: 0 0 25px rgba(0, 255, 242, 0.3);
-    transform: scale(1.02);
+    background: rgba(0, 255, 242, 0.06);
+    box-shadow: 0 0 22px rgba(0, 255, 242, 0.35);
 }
 
-/* Mobile adjustments */
+/* -----------------------------
+   MOBILE TUNING
+----------------------------- */
+
 @media (max-width: 600px) {
+    .site-logo {
+        width: 56px;
+        opacity: 0.4;
+    }
+
     input {
         font-size: 1rem;
-        padding: 10px 20px;
-        width: 80%;
+        padding: 10px 22px;
+        width: 82%;
+        letter-spacing: 2px;
+        background: rgba(255, 255, 255, 0.025);
     }
-    
-    .site-logo {
-        width: 60px; /* Slightly smaller logo on mobile */
+
+    .ui-layer {
+        padding-bottom: 10vh;
     }
 }

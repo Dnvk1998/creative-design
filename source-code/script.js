@@ -2,7 +2,9 @@ const canvas = document.getElementById("canvas1");
 const ctx = canvas.getContext("2d", { willReadFrequently: true });
 const input = document.getElementById("userInput");
 
-/* -------------------- DEVICE DETECTION -------------------- */
+/* =====================================================
+   DEVICE + PERFORMANCE DETECTION
+===================================================== */
 
 const isTouchDevice =
   "ontouchstart" in window || navigator.maxTouchPoints > 0;
@@ -12,8 +14,7 @@ const isLowEndDevice =
   navigator.hardwareConcurrency &&
   navigator.hardwareConcurrency <= 4;
 
-/* -------------------- PERFORMANCE BUDGET -------------------- */
-
+/* Performance budget */
 const MAX_PARTICLES = isLowEndDevice
   ? 550
   : isTouchDevice
@@ -23,18 +24,23 @@ const MAX_PARTICLES = isLowEndDevice
 const SCAN_SKIP = isLowEndDevice ? 6 : isTouchDevice ? 5 : 4;
 const FPS_LIMIT = isLowEndDevice ? 30 : 60;
 
-/* -------------------- STATE -------------------- */
+/* =====================================================
+   STATE
+===================================================== */
 
 let particles = [];
-// Mouse object now includes a 'pressed' state for touch
-let mouse = { x: null, y: null, radius: 100 };
+let mouse = { x: null, y: null, radius: 120 };
 let flowTimer = 0;
 let hueRotate = 0;
 let lastFrame = 0;
 
-/* -------------------- RESIZE -------------------- */
+/* Gyroscope tilt state */
+let tilt = { x: 0, y: 0 };
 
-// Resize Logic
+/* =====================================================
+   RESIZE
+===================================================== */
+
 function resize() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
@@ -48,20 +54,25 @@ window.addEventListener("resize", () => {
 
 resize();
 
-/* -------------------- TEXT TO SPEECH -------------------- */
+/* =====================================================
+   TEXT TO SPEECH
+===================================================== */
 
 function speakName(text) {
   if (!("speechSynthesis" in window)) return;
-
   window.speechSynthesis.cancel();
+
   const utter = new SpeechSynthesisUtterance(text);
   utter.pitch = 1;
   utter.rate = 0.9;
   utter.volume = 1;
+
   window.speechSynthesis.speak(utter);
 }
 
-/* -------------------- INTERACTION -------------------- */
+/* =====================================================
+   INTERACTION
+===================================================== */
 
 // Mouse
 window.addEventListener("mousemove", (e) => {
@@ -80,7 +91,17 @@ window.addEventListener(
   { passive: false }
 );
 
-// Touch start = TAP TRIGGER
+// Enable gyroscope (iOS requires gesture)
+function enableGyro() {
+  if (
+    typeof DeviceOrientationEvent !== "undefined" &&
+    typeof DeviceOrientationEvent.requestPermission === "function"
+  ) {
+    DeviceOrientationEvent.requestPermission().catch(() => {});
+  }
+}
+
+// Tap = trigger nebula
 window.addEventListener(
   "touchstart",
   (e) => {
@@ -88,7 +109,7 @@ window.addEventListener(
     mouse.x = e.touches[0].clientX;
     mouse.y = e.touches[0].clientY;
 
-    // 🔥 TAP TO TRIGGER NEBULA
+    enableGyro();
     init(input.value || "HELLO");
   },
   { passive: false }
@@ -104,7 +125,23 @@ if (isTouchDevice) {
   input.placeholder = "TAP SCREEN TO ACTIVATE";
 }
 
-/* -------------------- PARTICLE CLASS -------------------- */
+/* =====================================================
+   GYROSCOPE LISTENER
+===================================================== */
+
+if (isTouchDevice) {
+  window.addEventListener("deviceorientation", (e) => {
+    if (e.gamma == null || e.beta == null) return;
+
+    // Normalize & clamp for stability
+    tilt.x = Math.max(-1, Math.min(1, e.gamma / 30));
+    tilt.y = Math.max(-1, Math.min(1, e.beta / 30));
+  });
+}
+
+/* =====================================================
+   PARTICLE CLASS
+===================================================== */
 
 class Particle {
   constructor(x, y, hue, isOrb) {
@@ -123,10 +160,10 @@ class Particle {
   }
 
   draw() {
-    const hue = (this.hue + hueRotate) % 360;
+    const h = (this.hue + hueRotate) % 360;
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-    ctx.fillStyle = `hsl(${hue},100%,60%)`;
+    ctx.fillStyle = `hsl(${h},100%,60%)`;
     ctx.fill();
   }
 
@@ -134,6 +171,7 @@ class Particle {
     let tx = this.baseX;
     let ty = this.baseY;
 
+    // Idle motion
     if (this.isOrb) {
       tx += Math.cos(flowTimer + this.offset) * 30;
       ty += Math.sin(flowTimer * 0.5 + this.offset) * 30;
@@ -148,6 +186,12 @@ class Particle {
     this.vx += dx * this.speed;
     this.vy += dy * this.speed;
 
+    // 🌌 Gyroscope flow influence
+    const tiltStrength = this.isOrb ? 0.6 : 0.25;
+    this.vx += tilt.x * tiltStrength;
+    this.vy += tilt.y * tiltStrength;
+
+    // Mouse / touch repulsion
     if (mouse.x !== null) {
       const mx = mouse.x - this.x;
       const my = mouse.y - this.y;
@@ -168,7 +212,9 @@ class Particle {
   }
 }
 
-/* -------------------- INIT -------------------- */
+/* =====================================================
+   INIT
+===================================================== */
 
 function init(text) {
   particles = [];
@@ -176,6 +222,7 @@ function init(text) {
   const cy = canvas.height / 2;
 
   if (!text.trim()) {
+    // Orb mode
     for (let i = 0; i < MAX_PARTICLES; i++) {
       const a = Math.random() * Math.PI * 2;
       const r = Math.random() * (canvas.width < 600 ? 80 : 150);
@@ -185,6 +232,7 @@ function init(text) {
       );
     }
   } else {
+    // Text mode
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const fontSize = Math.min(canvas.width * 0.2, 180);
@@ -208,7 +256,9 @@ function init(text) {
   }
 }
 
-/* -------------------- ANIMATION LOOP -------------------- */
+/* =====================================================
+   ANIMATION LOOP
+===================================================== */
 
 function animate(time) {
   if (time - lastFrame < 1000 / FPS_LIMIT) {
@@ -218,6 +268,7 @@ function animate(time) {
   lastFrame = time;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
   hueRotate += 0.5;
   flowTimer += 0.04;
 
@@ -231,7 +282,9 @@ function animate(time) {
   requestAnimationFrame(animate);
 }
 
-/* -------------------- INPUT EVENTS -------------------- */
+/* =====================================================
+   INPUT EVENTS
+===================================================== */
 
 input.addEventListener("input", (e) => {
   init(e.target.value);
@@ -243,7 +296,9 @@ input.addEventListener("keyup", (e) => {
   }
 });
 
-/* -------------------- START -------------------- */
+/* =====================================================
+   START
+===================================================== */
 
 init("");
 requestAnimationFrame(animate);
