@@ -1,227 +1,249 @@
-const canvas = document.getElementById('canvas1');
-const ctx = canvas.getContext('2d', { willReadFrequently: true });
-const input = document.getElementById('userInput');
+const canvas = document.getElementById("canvas1");
+const ctx = canvas.getContext("2d", { willReadFrequently: true });
+const input = document.getElementById("userInput");
+
+/* -------------------- DEVICE DETECTION -------------------- */
+
+const isTouchDevice =
+  "ontouchstart" in window || navigator.maxTouchPoints > 0;
+
+const isLowEndDevice =
+  isTouchDevice &&
+  navigator.hardwareConcurrency &&
+  navigator.hardwareConcurrency <= 4;
+
+/* -------------------- PERFORMANCE BUDGET -------------------- */
+
+const MAX_PARTICLES = isLowEndDevice
+  ? 550
+  : isTouchDevice
+  ? 850
+  : 1500;
+
+const SCAN_SKIP = isLowEndDevice ? 6 : isTouchDevice ? 5 : 4;
+const FPS_LIMIT = isLowEndDevice ? 30 : 60;
+
+/* -------------------- STATE -------------------- */
 
 let particles = [];
 // Mouse object now includes a 'pressed' state for touch
 let mouse = { x: null, y: null, radius: 100 };
 let flowTimer = 0;
 let hueRotate = 0;
+let lastFrame = 0;
+
+/* -------------------- RESIZE -------------------- */
 
 // Resize Logic
 function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    // Recalculate mouse interaction radius based on screen size
-    mouse.radius = canvas.width < 600 ? 80 : 150;
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  mouse.radius = canvas.width < 600 ? 80 : 150;
 }
 
-window.addEventListener('resize', () => {
-    resize();
-    init(input.value);
+window.addEventListener("resize", () => {
+  resize();
+  init(input.value);
 });
+
 resize();
 
-// --- NEW: AUDIO FUNCTION (Text-to-Speech) ---
+/* -------------------- TEXT TO SPEECH -------------------- */
+
 function speakName(text) {
-    // Check if browser supports speech
-    if ('speechSynthesis' in window) {
-        // Cancel any currently playing speech to prevent overlapping
-        window.speechSynthesis.cancel();
+  if (!("speechSynthesis" in window)) return;
 
-        // Create the speech object
-        const utterance = new SpeechSynthesisUtterance(text);
-        
-        // Customizations (You can tweak these)
-        utterance.pitch = 1.0; // 0 to 2
-        utterance.rate = 0.9;  // 0.1 to 10 (0.9 is slightly slower/clearer)
-        utterance.volume = 1;  // 0 to 1
-
-        // Speak
-        window.speechSynthesis.speak(utterance);
-    } else {
-        console.log("Browser does not support Text-to-Speech");
-    }
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.pitch = 1;
+  utter.rate = 0.9;
+  utter.volume = 1;
+  window.speechSynthesis.speak(utter);
 }
 
-// --- INTERACTION HANDLERS (Mouse & Touch) ---
+/* -------------------- INTERACTION -------------------- */
 
 // Mouse
-window.addEventListener('mousemove', (e) => {
-    mouse.x = e.x;
-    mouse.y = e.y;
+window.addEventListener("mousemove", (e) => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
 });
 
-// Touch
-window.addEventListener('touchmove', (e) => {
-    // Prevent scrolling while dragging particles
+// Touch move
+window.addEventListener(
+  "touchmove",
+  (e) => {
     if (e.target !== input) e.preventDefault();
     mouse.x = e.touches[0].clientX;
     mouse.y = e.touches[0].clientY;
-}, { passive: false });
+  },
+  { passive: false }
+);
 
-window.addEventListener('touchstart', (e) => {
+// Touch start = TAP TRIGGER
+window.addEventListener(
+  "touchstart",
+  (e) => {
     if (e.target !== input) e.preventDefault();
     mouse.x = e.touches[0].clientX;
     mouse.y = e.touches[0].clientY;
-}, { passive: false });
 
-window.addEventListener('touchend', () => {
-    mouse.x = null;
-    mouse.y = null;
+    // 🔥 TAP TO TRIGGER NEBULA
+    init(input.value || "HELLO");
+  },
+  { passive: false }
+);
+
+window.addEventListener("touchend", () => {
+  mouse.x = null;
+  mouse.y = null;
 });
 
+// Mobile UX hint
+if (isTouchDevice) {
+  input.placeholder = "TAP SCREEN TO ACTIVATE";
+}
+
+/* -------------------- PARTICLE CLASS -------------------- */
 
 class Particle {
-    constructor(x, y, color, isOrb) {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
-        this.baseX = x;
-        this.baseY = y;
-        this.size = (Math.random() * 2) + 1;
-        this.color = color; // Initial Hue
-        this.vx = 0;
-        this.vy = 0;
-        this.isOrb = isOrb;
-        this.offset = Math.random() * 100;
-        this.speed = 0.03 + Math.random() * 0.04;
-        this.friction = 0.92; // Higher friction = smoother stop
+  constructor(x, y, hue, isOrb) {
+    this.x = Math.random() * canvas.width;
+    this.y = Math.random() * canvas.height;
+    this.baseX = x;
+    this.baseY = y;
+    this.size = Math.random() * 2 + 1;
+    this.hue = hue;
+    this.vx = 0;
+    this.vy = 0;
+    this.isOrb = isOrb;
+    this.offset = Math.random() * 100;
+    this.speed = 0.03 + Math.random() * 0.04;
+    this.friction = 0.92;
+  }
+
+  draw() {
+    const hue = (this.hue + hueRotate) % 360;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fillStyle = `hsl(${hue},100%,60%)`;
+    ctx.fill();
+  }
+
+  update() {
+    let tx = this.baseX;
+    let ty = this.baseY;
+
+    if (this.isOrb) {
+      tx += Math.cos(flowTimer + this.offset) * 30;
+      ty += Math.sin(flowTimer * 0.5 + this.offset) * 30;
+    } else {
+      tx += Math.cos(flowTimer * 2 + this.offset) * 2;
+      ty += Math.sin(flowTimer * 2 + this.offset) * 2;
     }
 
-    draw() {
-        // Calculate dynamic color based on time
-        let currentHue = (parseInt(this.color) + hueRotate) % 360;
+    const dx = tx - this.x;
+    const dy = ty - this.y;
 
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    this.vx += dx * this.speed;
+    this.vy += dy * this.speed;
 
-        // Pure color fill (Shadows handled by composite operation)
-        ctx.fillStyle = `hsl(${currentHue}, 100%, 60%)`;
-        ctx.fill();
+    if (mouse.x !== null) {
+      const mx = mouse.x - this.x;
+      const my = mouse.y - this.y;
+      const dist = Math.sqrt(mx * mx + my * my);
+
+      if (dist < mouse.radius) {
+        const force = (mouse.radius - dist) / mouse.radius;
+        const angle = Math.atan2(my, mx);
+        this.vx -= Math.cos(angle) * force * 15;
+        this.vy -= Math.sin(angle) * force * 15;
+      }
     }
 
-    update() {
-        let targetX = this.baseX;
-        let targetY = this.baseY;
-
-        // Idle Animation (Floating)
-        if (this.isOrb) {
-            targetX += Math.cos(flowTimer + this.offset) * 30;
-            targetY += Math.sin(flowTimer * 0.5 + this.offset) * 30;
-        } else {
-            // Slight jitter for text particles to make them feel alive
-            targetX += Math.cos(flowTimer * 2 + this.offset) * 2;
-            targetY += Math.sin(flowTimer * 2 + this.offset) * 2;
-        }
-
-        let dx = targetX - this.x;
-        let dy = targetY - this.y;
-
-        // Move towards home
-        this.vx += dx * this.speed;
-        this.vy += dy * this.speed;
-
-        // Mouse Repulsion
-        if (mouse.x != null) {
-            let mdx = mouse.x - this.x;
-            let mdy = mouse.y - this.y;
-            let dist = Math.sqrt(mdx * mdx + mdy * mdy);
-
-            if (dist < mouse.radius) {
-                let force = (mouse.radius - dist) / mouse.radius;
-                let angle = Math.atan2(mdy, mdx);
-                let push = force * 15; // Push strength
-                this.vx -= Math.cos(angle) * push;
-                this.vy -= Math.sin(angle) * push;
-            }
-        }
-
-        this.vx *= this.friction;
-        this.vy *= this.friction;
-        this.x += this.vx;
-        this.y += this.vy;
-    }
+    this.vx *= this.friction;
+    this.vy *= this.friction;
+    this.x += this.vx;
+    this.y += this.vy;
+  }
 }
+
+/* -------------------- INIT -------------------- */
 
 function init(text) {
-    particles = [];
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
+  particles = [];
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
 
-    // Adjust particle density based on screen size (Performance)
-    const isMobile = canvas.width < 600;
-    const particleCount = isMobile ? 600 : 1500;
-    const scanSkip = isMobile ? 5 : 4; // Scan less pixels on mobile
-
-    if (!text || text.trim() === "") {
-        // Orb Mode
-        for (let i = 0; i < particleCount; i++) {
-            let a = Math.random() * Math.PI * 2;
-            let r = Math.random() * (isMobile ? 80 : 150);
-            // Store only the HUE integer to make rotation easier
-            let hue = Math.floor(180 + Math.random() * 60);
-            particles.push(new Particle(cx + Math.cos(a) * r, cy - 80 + Math.sin(a) * r, hue, true));
-        }
-    } else {
-        // Text Mode
-        const upperText = text.toUpperCase();
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Dynamic Font Size
-        let fontSize = Math.min(canvas.width * 0.2, 180);
-
-        ctx.fillStyle = 'white';
-        ctx.font = `900 ${fontSize}px "Rajdhani"`; // Use the cool font
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(upperText, cx, cy - 50);
-
-        const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        for (let y = 0; y < canvas.height; y += scanSkip) {
-            for (let x = 0; x < canvas.width; x += scanSkip) {
-                // Check alpha > 128
-                if (data[(y * canvas.width + x) * 4 + 3] > 128) {
-                    let hue = Math.floor(180 + (x / canvas.width) * 100);
-                    particles.push(new Particle(x, y, hue, false));
-                }
-            }
-        }
+  if (!text.trim()) {
+    for (let i = 0; i < MAX_PARTICLES; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * (canvas.width < 600 ? 80 : 150);
+      const hue = 180 + Math.random() * 60;
+      particles.push(
+        new Particle(cx + Math.cos(a) * r, cy - 80 + Math.sin(a) * r, hue, true)
+      );
     }
-}
-
-function animate() {
-    // CHANGE THIS LINE: Use clearRect instead of fillRect to see the background image
+  } else {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Global Hue Rotation
-    hueRotate += 0.5;
-    flowTimer += 0.04;
+    const fontSize = Math.min(canvas.width * 0.2, 180);
+    ctx.font = `900 ${fontSize}px Rajdhani`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "white";
+    ctx.fillText(text.toUpperCase(), cx, cy - 50);
 
-    ctx.globalCompositeOperation = 'lighter';
-    particles.forEach(p => { p.update(); p.draw(); });
-    ctx.globalCompositeOperation = 'source-over';
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    requestAnimationFrame(animate);
-}
-// --- UPDATED EVENT LISTENERS ---
-
-// 1. Instant Visual Updates (Particles morph as you type)
-input.addEventListener('input', (e) => {
-    init(e.target.value);
-});
-
-// 2. Audio Trigger (Speaks only when ENTER is pressed)
-input.addEventListener('keyup', (e) => {
-    if (e.key === 'Enter') {
-        const textToSpeak = e.target.value;
-        if(textToSpeak.trim() !== "") {
-            speakName(textToSpeak);
+    for (let y = 0; y < canvas.height; y += SCAN_SKIP) {
+      for (let x = 0; x < canvas.width; x += SCAN_SKIP) {
+        if (data[(y * canvas.width + x) * 4 + 3] > 128) {
+          const hue = 180 + (x / canvas.width) * 100;
+          particles.push(new Particle(x, y, hue, false));
         }
+      }
     }
+  }
+}
+
+/* -------------------- ANIMATION LOOP -------------------- */
+
+function animate(time) {
+  if (time - lastFrame < 1000 / FPS_LIMIT) {
+    requestAnimationFrame(animate);
+    return;
+  }
+  lastFrame = time;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  hueRotate += 0.5;
+  flowTimer += 0.04;
+
+  ctx.globalCompositeOperation = "lighter";
+  particles.forEach((p) => {
+    p.update();
+    p.draw();
+  });
+  ctx.globalCompositeOperation = "source-over";
+
+  requestAnimationFrame(animate);
+}
+
+/* -------------------- INPUT EVENTS -------------------- */
+
+input.addEventListener("input", (e) => {
+  init(e.target.value);
 });
 
-// Initial start
+input.addEventListener("keyup", (e) => {
+  if (e.key === "Enter" && e.target.value.trim()) {
+    speakName(e.target.value);
+  }
+});
+
+/* -------------------- START -------------------- */
+
 init("");
-animate();
+requestAnimationFrame(animate);
