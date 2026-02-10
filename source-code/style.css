@@ -56,11 +56,21 @@ body {
 }
 
 .site-logo {
-    width: 80px;
+    width: 140px;               /* I bumped this up, 80px might be too small for this detail */
     height: auto;
-    opacity: 0.5;
-    filter: drop-shadow(0 0 10px rgba(0, 255, 242, 0.25));
-    transition: opacity 0.3s ease;
+    opacity: 1;                 /* Set to 1 because blend mode handles the transparency */
+    
+    /* THE MAGIC LINE: This removes the black background pixels */
+    mix-blend-mode: screen;     
+    
+    /* This makes the glow follow the shape of the fire, not the square box */
+    filter: drop-shadow(0 0 15px rgba(0, 255, 242, 0.4)); 
+    
+    transition: transform 0.3s ease;
+}
+
+.site-logo:hover {
+    transform: scale(1.1);      /* Adds a nice interactive feel */
 }
 
 /* -----------------------------
